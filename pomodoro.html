@@ -356,11 +356,13 @@
   let BREAK_SEC = cfg.breakMin * 60;
   let TASKS     = cfg.tasks;
 
-  let taskIndex = 0;
-  let isWorking = true;
-  let timeLeft  = WORK_SEC;
-  let isRunning = false;
-  let timerId   = null;
+  let taskIndex      = 0;
+  let isWorking      = true;
+  let timeLeft       = WORK_SEC;
+  let isRunning      = false;
+  let timerId        = null;
+  let startTimestamp = null;   // 現在の実行開始時刻
+  let pausedMs       = 0;      // 一時停止中に積算した経過時間
 
   // ─────────────────────────────────────
   // DOM
@@ -379,28 +381,39 @@
   // ─────────────────────────────────────
   function toggleTimer() {
     if (isRunning) {
+      pausedMs += Date.now() - startTimestamp;
       clearInterval(timerId);
-      isRunning = false;
+      isRunning      = false;
+      startTimestamp = null;
       $btnStart.textContent = '再開';
+      updateMediaSession();
+      if (bgAudio) bgAudio.pause();
     } else {
-      isRunning = true;
+      startSilentAudio();
+      startTimestamp = Date.now();
+      isRunning      = true;
       $btnStart.textContent = '一時停止';
-      timerId = setInterval(tick, 1000);
+      timerId = setInterval(tick, 500);
     }
   }
 
   function tick() {
-    timeLeft--;
+    const elapsed  = pausedMs + (Date.now() - startTimestamp);
+    const totalMs  = (isWorking ? WORK_SEC : BREAK_SEC) * 1000;
+    timeLeft = Math.max(0, Math.round((totalMs - elapsed) / 1000));
     updateUI();
+    updateMediaSession();
     if (timeLeft <= 0) {
       clearInterval(timerId);
-      isRunning = false;
       playBeep();
+      pausedMs = 0; startTimestamp = null;
       advancePhase();
       updateUI();
-      isRunning = true;
+      // 次のフェーズを自動スタート
+      startTimestamp = Date.now();
+      isRunning      = true;
       $btnStart.textContent = '一時停止';
-      timerId = setInterval(tick, 1000);
+      timerId = setInterval(tick, 500);
     }
   }
 
@@ -417,11 +430,21 @@
 
   function skipPhase() {
     clearInterval(timerId);
-    isRunning = false;
+    isRunning = false; startTimestamp = null; pausedMs = 0;
     advancePhase();
     updateUI();
     $btnStart.textContent = 'スタート';
   }
+
+  // バックグラウンドから復帰した時に表示を即時更新
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isRunning) {
+      const elapsed = pausedMs + (Date.now() - startTimestamp);
+      const totalMs = (isWorking ? WORK_SEC : BREAK_SEC) * 1000;
+      timeLeft = Math.max(0, Math.round((totalMs - elapsed) / 1000));
+      updateUI();
+    }
+  });
 
   // ─────────────────────────────────────
   // UI更新
@@ -543,7 +566,7 @@
 
     // タイマーをリセット
     clearInterval(timerId);
-    isRunning = false;
+    isRunning = false; startTimestamp = null; pausedMs = 0;
     taskIndex = 0;
     isWorking = true;
     WORK_SEC  = cfg.workMin  * 60;
@@ -556,6 +579,47 @@
     saveToStorage(cfg);
     updateUI();
     closeSettings();
+  }
+
+  // ─────────────────────────────────────
+  // ロック画面表示（Media Session API）
+  // ─────────────────────────────────────
+  let bgAudio = null;
+
+  function createSilentWavUrl() {
+    const rate = 8000, sec = 3, n = rate * sec;
+    const buf  = new ArrayBuffer(44 + n);
+    const v    = new DataView(buf);
+    const ws   = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0,'RIFF'); v.setUint32(4, 36+n, true); ws(8,'WAVE');
+    ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true);
+    v.setUint16(22,1,true); v.setUint32(24,rate,true); v.setUint32(28,rate,true);
+    v.setUint16(32,1,true); v.setUint16(34,8,true);
+    ws(36,'data'); v.setUint32(40,n,true);
+    for (let i = 0; i < n; i++) v.setUint8(44+i, 128);
+    return URL.createObjectURL(new Blob([buf], {type:'audio/wav'}));
+  }
+
+  function startSilentAudio() {
+    if (!('mediaSession' in navigator)) return;
+    if (!bgAudio) {
+      bgAudio      = new Audio(createSilentWavUrl());
+      bgAudio.loop = true;
+    }
+    bgAudio.play().catch(() => {});
+  }
+
+  function updateMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    const task = TASKS[taskIndex % TASKS.length];
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title:  isWorking ? `${task.emoji} ${task.name}` : '🌿 休憩中',
+      artist: `残り ${formatTime(timeLeft)}`,
+      album:  '交互ポモドーロ'
+    });
+    navigator.mediaSession.playbackState = isRunning ? 'playing' : 'paused';
+    navigator.mediaSession.setActionHandler('play',  () => { if (!isRunning) toggleTimer(); });
+    navigator.mediaSession.setActionHandler('pause', () => { if  (isRunning) toggleTimer(); });
   }
 
   // ─────────────────────────────────────
