@@ -1,0 +1,17 @@
+{
+  "name": "交互ポモドーロ",
+  "short_name": "ポモドーロ",
+  "description": "タスクを交互にこなすポモドーロタイマー",
+  "start_url": "./pomodoro.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

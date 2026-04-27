@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>交互ポモドーロ</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ポモドーロ">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      transition: background 0.6s ease;
+    }
+    body.work  { background: #1a1a2e; }
+    body.break { background: #0f2a1a; }
+
+    /* ── 設定ボタン（右上） ── */
+    #btn-settings {
+      position: fixed;
+      top: 20px; right: 20px;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: #fff;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #btn-settings:active { opacity: 0.6; }
+
+    /* ── タイマー画面 ── */
+    #phase-label {
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      opacity: 0.55;
+      margin-bottom: 12px;
+    }
+    #current-task {
+      font-size: 26px;
+      font-weight: bold;
+      margin-bottom: 44px;
+      text-align: center;
+    }
+    #timer-display {
+      font-size: 80px;
+      font-weight: 200;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      margin-bottom: 28px;
+      font-variant-numeric: tabular-nums;
+    }
+    #progress-wrap {
+      width: 100%; max-width: 320px;
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      margin-bottom: 52px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%; border-radius: 3px;
+      background: #e07b54;
+      transition: width 0.8s linear;
+    }
+    body.break #progress-bar { background: #4caf87; }
+
+    #btn-start {
+      width: 180px; height: 56px;
+      border-radius: 28px; border: none;
+      font-size: 18px; font-weight: bold;
+      cursor: pointer;
+      background: #e07b54; color: #fff;
+      margin-bottom: 36px;
+      transition: opacity 0.2s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #btn-start:active { opacity: 0.8; transform: scale(0.97); }
+    body.break #btn-start { background: #4caf87; }
+
+    #next-wrap {
+      font-size: 13px; opacity: 0.45; text-align: center;
+    }
+    #next-wrap span {
+      display: block; font-size: 15px;
+      opacity: 1; margin-top: 4px;
+    }
+    #btn-skip {
+      margin-top: 22px;
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.45);
+      padding: 8px 20px;
+      border-radius: 20px; font-size: 13px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #btn-skip:active { opacity: 0.5; }
+
+    /* ── 設定モーダル ── */
+    #modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: flex-end;
+    }
+    #modal-overlay.open { display: flex; }
+
+    #settings-panel {
+      background: #1e1e32;
+      width: 100%;
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 40px;
+      max-height: 85vh;
+      overflow-y: auto;
+      animation: slideUp 0.28s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+
+    .modal-header {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .modal-title { font-size: 18px; font-weight: bold; }
+    #btn-close-modal {
+      background: none; border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 24px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .section-label {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      opacity: 0.45;
+      margin-bottom: 12px;
+    }
+
+    /* タスクリスト */
+    #task-list { margin-bottom: 8px; }
+    .task-row {
+      display: flex; align-items: center;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+    .task-row span { flex: 1; font-size: 16px; }
+    .btn-del {
+      background: none; border: none;
+      color: rgba(255,80,80,0.7);
+      font-size: 20px; cursor: pointer;
+      padding: 0 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-del:active { opacity: 0.5; }
+
+    /* タスク追加 */
+    #add-task-row {
+      display: flex; gap: 8px;
+      margin-bottom: 28px;
+    }
+    #new-task-input {
+      flex: 1;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 15px;
+      outline: none;
+    }
+    #new-task-input::placeholder { color: rgba(255,255,255,0.3); }
+    #btn-add-task {
+      background: #e07b54; border: none;
+      color: #fff; border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 15px; font-weight: bold;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #btn-add-task:active { opacity: 0.7; }
+
+    /* 時間設定 */
+    .time-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .time-row label { font-size: 15px; }
+    .time-row input[type=number] {
+      background: rgba(255,255,255,0.15);
+      border: none; border-radius: 8px;
+      color: #fff; text-align: center;
+      width: 60px; height: 36px;
+      font-size: 16px; outline: none;
+    }
+    .time-unit { opacity: 0.5; font-size: 13px; margin-left: 6px; }
+
+    /* 保存ボタン */
+    #btn-save {
+      width: 100%; height: 52px;
+      border-radius: 14px; border: none;
+      background: #e07b54; color: #fff;
+      font-size: 17px; font-weight: bold;
+      cursor: pointer; margin-top: 24px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #btn-save:active { opacity: 0.8; }
+  </style>
+</head>
+<body class="work">
+
+  <!-- 設定ボタン -->
+  <button id="btn-settings" onclick="openSettings()">⚙️</button>
+
+  <!-- タイマー画面 -->
+  <div id="phase-label">作業中</div>
+  <div id="current-task">🎨 イラスト作業</div>
+  <div id="timer-display">25:00</div>
+
+  <div id="progress-wrap">
+    <div id="progress-bar" style="width:100%"></div>
+  </div>
+
+  <button id="btn-start" onclick="toggleTimer()">スタート</button>
+
+  <div id="next-wrap">
+    次のタスク
+    <span id="next-task">⚙️ Unity作業</span>
+  </div>
+  <button id="btn-skip" onclick="skipPhase()">スキップ →</button>
+
+  <!-- 設定モーダル -->
+  <div id="modal-overlay" onclick="overlayClick(event)">
+    <div id="settings-panel">
+      <div class="modal-header">
+        <div class="modal-title">⚙️ 設定</div>
+        <button id="btn-close-modal" onclick="closeSettings()">✕</button>
+      </div>
+
+      <div class="section-label">タスク一覧（上から順にローテーション）</div>
+      <div id="task-list"></div>
+
+      <div id="add-task-row">
+        <input id="new-task-input" type="text"
+               placeholder="例：🎨 イラスト作業"
+               maxlength="20">
+        <button id="btn-add-task" onclick="addTask()">追加</button>
+      </div>
+
+      <div class="section-label">時間設定</div>
+      <div class="time-row">
+        <label>作業時間</label>
+        <div>
+          <input id="input-work" type="number" min="1" max="120" value="25">
+          <span class="time-unit">分</span>
+        </div>
+      </div>
+      <div class="time-row">
+        <label>休憩時間</label>
+        <div>
+          <input id="input-break" type="number" min="1" max="60" value="5">
+          <span class="time-unit">分</span>
+        </div>
+      </div>
+
+      <button id="btn-save" onclick="saveSettings()">保存して閉じる</button>
+    </div>
+  </div>
+
+<script>
+  // ─────────────────────────────────────
+  // デフォルト設定
+  // ─────────────────────────────────────
+  const DEFAULTS = {
+    workMin: 25,
+    breakMin: 5,
+    tasks: [
+      { name: 'イラスト作業', emoji: '🎨' },
+      { name: 'アニメ作業',   emoji: '🎬' },
+      { name: 'Unity作業',   emoji: '⚙️' },
+      { name: '進捗記事',    emoji: '📝' },
+    ]
+  };
+
+  // ─────────────────────────────────────
+  // 設定をLocalStorageから読み込む
+  // ─────────────────────────────────────
+  function loadSettings() {
+    try {
+      const saved = localStorage.getItem('pomodoroSettings');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return JSON.parse(JSON.stringify(DEFAULTS));
+  }
+
+  function saveToStorage(cfg) {
+    localStorage.setItem('pomodoroSettings', JSON.stringify(cfg));
+  }
+
+  // ─────────────────────────────────────
+  // 状態
+  // ─────────────────────────────────────
+  let cfg       = loadSettings();
+  let WORK_SEC  = cfg.workMin  * 60;
+  let BREAK_SEC = cfg.breakMin * 60;
+  let TASKS     = cfg.tasks;
+
+  let taskIndex = 0;
+  let isWorking = true;
+  let timeLeft  = WORK_SEC;
+  let isRunning = false;
+  let timerId   = null;
+
+  // ─────────────────────────────────────
+  // DOM
+  // ─────────────────────────────────────
+  const $phase    = document.getElementById('phase-label');
+  const $current  = document.getElementById('current-task');
+  const $timer    = document.getElementById('timer-display');
+  const $bar      = document.getElementById('progress-bar');
+  const $btnStart = document.getElementById('btn-start');
+  const $next     = document.getElementById('next-task');
+
+  updateUI();
+
+  // ─────────────────────────────────────
+  // タイマー操作
+  // ─────────────────────────────────────
+  function toggleTimer() {
+    if (isRunning) {
+      clearInterval(timerId);
+      isRunning = false;
+      $btnStart.textContent = '再開';
+    } else {
+      isRunning = true;
+      $btnStart.textContent = '一時停止';
+      timerId = setInterval(tick, 1000);
+    }
+  }
+
+  function tick() {
+    timeLeft--;
+    updateUI();
+    if (timeLeft <= 0) {
+      clearInterval(timerId);
+      isRunning = false;
+      playBeep();
+      advancePhase();
+      updateUI();
+      isRunning = true;
+      $btnStart.textContent = '一時停止';
+      timerId = setInterval(tick, 1000);
+    }
+  }
+
+  function advancePhase() {
+    if (isWorking) {
+      isWorking = false;
+      timeLeft  = BREAK_SEC;
+    } else {
+      isWorking  = true;
+      taskIndex  = (taskIndex + 1) % TASKS.length;
+      timeLeft   = WORK_SEC;
+    }
+  }
+
+  function skipPhase() {
+    clearInterval(timerId);
+    isRunning = false;
+    advancePhase();
+    updateUI();
+    $btnStart.textContent = 'スタート';
+  }
+
+  // ─────────────────────────────────────
+  // UI更新
+  // ─────────────────────────────────────
+  function updateUI() {
+    if (TASKS.length === 0) return;
+    const task     = TASKS[taskIndex % TASKS.length];
+    const nextIdx  = isWorking
+      ? (taskIndex + 1) % TASKS.length
+      : taskIndex % TASKS.length;
+    const nextTask = TASKS[nextIdx];
+    const total    = isWorking ? WORK_SEC : BREAK_SEC;
+    const pct      = (timeLeft / total) * 100;
+
+    document.body.className  = isWorking ? 'work' : 'break';
+    $phase.textContent        = isWorking ? '作業中' : '休憩中';
+    $current.textContent      = isWorking
+      ? `${task.emoji} ${task.name}`
+      : '🌿 休憩してください';
+    $timer.textContent        = formatTime(timeLeft);
+    $bar.style.width          = pct + '%';
+    $next.textContent         = `${nextTask.emoji} ${nextTask.name}`;
+  }
+
+  function formatTime(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  // ─────────────────────────────────────
+  // ビープ音
+  // ─────────────────────────────────────
+  function playBeep() {
+    try {
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8);
+    } catch(e) {}
+  }
+
+  // ─────────────────────────────────────
+  // 設定モーダル
+  // ─────────────────────────────────────
+  function openSettings() {
+    // タスクリストを描画
+    renderTaskList();
+    // 時間を反映
+    document.getElementById('input-work').value  = cfg.workMin;
+    document.getElementById('input-break').value = cfg.breakMin;
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeSettings() {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  function overlayClick(e) {
+    if (e.target === document.getElementById('modal-overlay')) closeSettings();
+  }
+
+  function renderTaskList() {
+    const list = document.getElementById('task-list');
+    list.innerHTML = '';
+    cfg.tasks.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      row.innerHTML = `
+        <span>${t.emoji} ${t.name}</span>
+        <button class="btn-del" onclick="deleteTask(${i})">×</button>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  function addTask() {
+    const input = document.getElementById('new-task-input');
+    const raw   = input.value.trim();
+    if (!raw) return;
+
+    // 先頭の絵文字を自動分離（あれば）
+    const emojiReg = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u;
+    const match    = raw.match(emojiReg);
+    const emoji    = match ? match[1] : '📌';
+    const name     = raw.replace(emojiReg, '').trim() || raw;
+
+    cfg.tasks.push({ name, emoji });
+    input.value = '';
+    renderTaskList();
+  }
+
+  function deleteTask(index) {
+    if (cfg.tasks.length <= 1) {
+      alert('タスクは1つ以上必要です');
+      return;
+    }
+    cfg.tasks.splice(index, 1);
+    renderTaskList();
+  }
+
+  function saveSettings() {
+    const wMin = parseInt(document.getElementById('input-work').value)  || 25;
+    const bMin = parseInt(document.getElementById('input-break').value) || 5;
+    cfg.workMin  = Math.max(1, Math.min(120, wMin));
+    cfg.breakMin = Math.max(1, Math.min(60,  bMin));
+
+    // タイマーをリセット
+    clearInterval(timerId);
+    isRunning = false;
+    taskIndex = 0;
+    isWorking = true;
+    WORK_SEC  = cfg.workMin  * 60;
+    BREAK_SEC = cfg.breakMin * 60;
+    TASKS     = cfg.tasks;
+    timeLeft  = WORK_SEC;
+    $btnStart.textContent = 'スタート';
+
+    // 保存
+    saveToStorage(cfg);
+    updateUI();
+    closeSettings();
+  }
+
+  // ─────────────────────────────────────
+  // Service Worker 登録（PWA）
+  // ─────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
