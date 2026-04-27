@@ -163,8 +163,22 @@
       border-radius: 10px;
       padding: 12px 14px;
       margin-bottom: 8px;
+      cursor: default;
     }
     .task-row span { flex: 1; font-size: 16px; }
+    .drag-handle {
+      color: rgba(255,255,255,0.3);
+      font-size: 18px;
+      padding: 0 10px 0 0;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .sortable-ghost {
+      opacity: 0.3;
+      background: rgba(255,255,255,0.15) !important;
+    }
     .btn-del {
       background: none; border: none;
       color: rgba(255,80,80,0.7);
@@ -450,6 +464,7 @@
   function openSettings() {
     // タスクリストを描画
     renderTaskList();
+    initSortable();
     // 時間を反映
     document.getElementById('input-work').value  = cfg.workMin;
     document.getElementById('input-break').value = cfg.breakMin;
@@ -470,7 +485,9 @@
     cfg.tasks.forEach((t, i) => {
       const row = document.createElement('div');
       row.className = 'task-row';
+      row.dataset.index = i;
       row.innerHTML = `
+        <span class="drag-handle">⠿</span>
         <span>${t.emoji} ${t.name}</span>
         <button class="btn-del" onclick="deleteTask(${i})">×</button>
       `;
@@ -527,11 +544,31 @@
   }
 
   // ─────────────────────────────────────
+  // ドラッグ＆ドロップ（Sortable）
+  // ─────────────────────────────────────
+  let sortable = null;
+
+  function initSortable() {
+    if (sortable) sortable.destroy();
+    sortable = Sortable.create(document.getElementById('task-list'), {
+      handle: '.drag-handle',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      onEnd(evt) {
+        const moved = cfg.tasks.splice(evt.oldIndex, 1)[0];
+        cfg.tasks.splice(evt.newIndex, 0, moved);
+        renderTaskList();
+      }
+    });
+  }
+
+  // ─────────────────────────────────────
   // Service Worker 登録（PWA）
   // ─────────────────────────────────────
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </body>
 </html>
