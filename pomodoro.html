@@ -167,9 +167,11 @@
     }
     .task-row span { flex: 1; font-size: 16px; }
     .drag-handle {
-      color: rgba(255,255,255,0.3);
-      font-size: 18px;
-      padding: 0 10px 0 0;
+      flex: none;
+      color: rgba(255,255,255,0.35);
+      font-size: 20px;
+      line-height: 1;
+      padding: 0 12px 0 0;
       cursor: grab;
       touch-action: none;
       user-select: none;
@@ -487,7 +489,7 @@
       row.className = 'task-row';
       row.dataset.index = i;
       row.innerHTML = `
-        <span class="drag-handle">⠿</span>
+        <span class="drag-handle">&#9776;</span>
         <span>${t.emoji} ${t.name}</span>
         <button class="btn-del" onclick="deleteTask(${i})">×</button>
       `;
