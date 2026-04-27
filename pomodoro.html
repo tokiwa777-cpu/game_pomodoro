@@ -168,13 +168,16 @@
     .task-row span { flex: 1; font-size: 16px; }
     .drag-handle {
       flex: none;
-      color: rgba(255,255,255,0.35);
-      font-size: 20px;
-      line-height: 1;
-      padding: 0 12px 0 0;
+      width: 18px;
+      height: 14px;
+      margin-right: 12px;
       cursor: grab;
       touch-action: none;
       user-select: none;
+      border-top: 2px solid rgba(255,255,255,0.4);
+      box-shadow:
+        0 5px 0 rgba(255,255,255,0.4),
+        0 10px 0 rgba(255,255,255,0.4);
     }
     .drag-handle:active { cursor: grabbing; }
     .sortable-ghost {
@@ -489,7 +492,7 @@
       row.className = 'task-row';
       row.dataset.index = i;
       row.innerHTML = `
-        <span class="drag-handle">&#9776;</span>
+        <span class="drag-handle"></span>
         <span>${t.emoji} ${t.name}</span>
         <button class="btn-del" onclick="deleteTask(${i})">×</button>
       `;
