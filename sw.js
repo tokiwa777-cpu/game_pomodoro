@@ -1,5 +1,5 @@
 // Service Worker — オフライン対応
-const CACHE = 'pomodoro-v4';
+const CACHE = 'pomodoro-v5';
 const FILES = [
   './pomodoro.html',
   './manifest.json'

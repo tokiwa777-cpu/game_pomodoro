@@ -162,13 +162,18 @@
     #task-list { margin-bottom: 8px; }
     .task-row {
       display: flex; align-items: center;
+      justify-content: center;
+      position: relative;
       background: rgba(255,255,255,0.07);
       border-radius: 10px;
-      padding: 12px 14px;
+      padding: 12px 44px;
       margin-bottom: 8px;
       cursor: default;
     }
-    .task-row span { flex: 1; font-size: 16px; }
+    .task-center {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .task-row span { font-size: 16px; }
     .drag-handle {
       flex: none;
       width: 18px;
@@ -188,6 +193,7 @@
       background: rgba(255,255,255,0.15) !important;
     }
     .btn-del {
+      position: absolute; right: 14px;
       background: none; border: none;
       color: rgba(255,80,80,0.7);
       font-size: 20px; cursor: pointer;
@@ -495,8 +501,10 @@
       row.className = 'task-row';
       row.dataset.index = i;
       row.innerHTML = `
-        <span class="drag-handle"></span>
-        <span>${t.emoji} ${t.name}</span>
+        <div class="task-center">
+          <span class="drag-handle"></span>
+          <span>${t.emoji} ${t.name}</span>
+        </div>
         <button class="btn-del" onclick="deleteTask(${i})">×</button>
       `;
       list.appendChild(row);
